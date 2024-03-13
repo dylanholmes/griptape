@@ -1,7 +1,7 @@
 import json
 import pytest
 from griptape import utils
-from griptape.loaders import WebLoader
+from griptape.loaders.web_loader_2 import WebLoader
 from tests.mocks.mock_embedding_driver import MockEmbeddingDriver
 
 MAX_TOKENS = 50
@@ -9,13 +9,10 @@ MAX_TOKENS = 50
 
 class TestWebLoader:
     @pytest.fixture(autouse=True)
-    def mock_trafilatura(self, mocker):
-        fake_response = {"status": 200, "data": "foobar"}
-
-        fake_extract = {"text": "foobar"}
-
-        mocker.patch("trafilatura.fetch_url", return_value=fake_response)
-        mocker.patch("trafilatura.extract", return_value=json.dumps(fake_extract))
+    def mock_playwright(self, mocker):
+        playwright = mocker.MagicMock()
+        playwright.__enter__.return_value.chromium.launch.return_value.__enter__.return_value.new_page.return_value.content.return_value = "foobar"
+        mocker.patch("playwright.sync_api.sync_playwright", return_value=playwright)
 
     @pytest.fixture
     def loader(self):
@@ -23,10 +20,6 @@ class TestWebLoader:
 
     def test_load(self, loader):
         artifacts = loader.load("https://github.com/griptape-ai/griptape")
-
-        print('-'*50)
-        print(artifacts[0].value)
-        print('-'*50)
 
         assert len(artifacts) >= 1
         assert "foobar" in artifacts[0].value.lower()
@@ -47,19 +40,17 @@ class TestWebLoader:
         assert list(artifacts.values())[0][0].embedding == [0, 1]
 
     def test_empty_page_string_response(self, loader, mocker):
-        fake_response = {"status": 200, "data": "foobar"}
+        playwright = mocker.MagicMock()
+        playwright.__enter__.return_value.chromium.launch.return_value.__enter__.return_value.new_page.return_value.content.return_value = ""
+        mocker.patch("playwright.sync_api.sync_playwright", return_value=playwright)
 
-        mocker.patch("trafilatura.fetch_url", return_value=fake_response)
-        mocker.patch("trafilatura.extract", return_value="")
-
-        with pytest.raises(Exception, match="can't extract page"):
+        with pytest.raises(Exception, match="can't access URL"):
             loader.load("https://example.com/")
 
     def test_empty_page_none_response(self, loader, mocker):
-        fake_response = {"status": 200, "data": "foobar"}
+        playwright = mocker.MagicMock()
+        playwright.__enter__.return_value.chromium.launch.return_value.__enter__.return_value.new_page.return_value.content.return_value = None
+        mocker.patch("playwright.sync_api.sync_playwright", return_value=playwright)
 
-        mocker.patch("trafilatura.fetch_url", return_value=fake_response)
-        mocker.patch("trafilatura.extract", return_value=None)
-
-        with pytest.raises(Exception, match="can't extract page"):
+        with pytest.raises(Exception, match="can't access URL"):
             loader.load("https://example.com/")
